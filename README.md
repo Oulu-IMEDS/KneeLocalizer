@@ -15,6 +15,8 @@ Run the script as follows:
 ```
 python detector.py --dir <dir with DICOM files>
 ```
+
+Script will produce the bounding boxes of 120mm and save it to the file *detection_results.py*
 # How to cite
 If you use our package in your own research, please cite us:
 
