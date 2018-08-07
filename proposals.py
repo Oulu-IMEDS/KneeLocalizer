@@ -1,4 +1,4 @@
-import dicom
+import pydicom as dicom
 import scipy.io as spio
 import numpy as np
 
@@ -44,7 +44,7 @@ def get_joint_y_proposals(img, av_points=11, margin=0.25):
     R, C = img.shape
     # Summing the middle if the leg along the X-axis
 
-    segm_line = np.sum(img[int(R*margin):int(R*(1-margin)),C/3:C-C/3],1)
+    segm_line = np.sum(img[int(R*margin):int(R*(1-margin)),int(C/3):int(C-C/3)],1)
     # Making segmentation line smooth and finding the absolute of the derivative
     segm_line = np.abs(np.convolve(np.diff(segm_line), np.ones((av_points,))/av_points)[(av_points-1):])
 

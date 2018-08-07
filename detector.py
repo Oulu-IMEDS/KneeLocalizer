@@ -6,11 +6,8 @@ import argparse
 import os
 import time
 from proposals import read_dicom, get_joint_y_proposals
-
-# This can be uncommented in case if parallel processing is needed
-from joblib import Parallel, delayed
-
-
+from tqdm import tqdm
+import multiprocessing as mp
 
 def worker(i):
     """
@@ -18,12 +15,11 @@ def worker(i):
     """
     res_read = read_dicom(os.path.join(DIR, fnames[i]))
     if res_read is None:
-        print("failed on {0}, {1}".format(i, fnames[i]))
         return ' '.join(map(str,[fnames[i]] + [-1]*4 +[-1]*4))
 
     img, spacing = res_read
     R, C = img.shape
-    split_point = C/2
+    split_point = C//2
 
     right_l = img[:,:split_point]
     left_l = img[:,split_point:]
@@ -83,7 +79,6 @@ def worker(i):
 
     roi_L = np.array([jc[0]-sizepx//2, jc[1]-sizepx//2, jc[0]+sizepx//2, jc[1]+sizepx//2])
 
-    print("Done with {}, {}".format(i, fnames[i]))
     return ' '.join(map(str,[fnames[i]] + np.round(roi_L).astype(int).tolist() + np.round(roi_R).astype(int).tolist()))
 
 
@@ -108,14 +103,18 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir")
+    parser.add_argument("--output", default='../detection_results.txt')
+    
     args = parser.parse_args()
 
     DIR = os.path.abspath(args.dir)
     fnames = os.listdir(DIR)
-    w, b = np.load('svm_model.npy')
+    w, b = np.load('svm_model.npy', encoding='bytes')
 
-    res = Parallel(n_jobs=6)(delayed(worker)(i) for i in range(len(fnames)))
-    with open('detection_results.txt','w') as f:
+    with mp.Pool(mp.cpu_count()) as p:
+        res = list(tqdm(p.imap(worker, range(len(fnames))), total=len(fnames)))
+        
+    with open(args.output,'w') as f:
         for entry in res:
             f.write(entry+'\n')
 
