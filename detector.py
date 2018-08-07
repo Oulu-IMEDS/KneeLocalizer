@@ -1,5 +1,5 @@
 from __future__ import print_function
-import dicom
+import pydicom as dicom
 import numpy as np
 import cv2
 import argparse
