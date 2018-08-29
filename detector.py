@@ -1,121 +1,142 @@
-from __future__ import print_function
-import pydicom as dicom
-import numpy as np
-import cv2
-import argparse
 import os
 import time
-from proposals import read_dicom, get_joint_y_proposals
-from tqdm import tqdm
-import multiprocessing as mp
+import argparse
+from multiprocessing import Pool, cpu_count
 
-def worker(i):
-    """
-    This function can be applied to list of files in fnames, which is a global array
-    """
-    res_read = read_dicom(os.path.join(DIR, fnames[i]))
+import numpy as np
+import cv2
+from tqdm import tqdm
+
+from proposals import read_dicom, get_joint_y_proposals
+
+
+def worker(fname, path_input, size_mm, win_size, win_stride,
+           block_size, block_stride, cell_size, padding, nbins,
+           scales, step, svm_w, svm_b):
+    res_read = read_dicom(os.path.join(path_input, fname))
     if res_read is None:
-        return ' '.join(map(str,[fnames[i]] + [-1]*4 +[-1]*4))
+        ret = [fname, ] + [-1, ] * 4 + [-1, ] * 4
+        return ' '.join([str(e) for e in ret])
 
     img, spacing = res_read
     R, C = img.shape
-    split_point = C//2
+    split_point = C // 2
 
-    right_l = img[:,:split_point]
-    left_l = img[:,split_point:]
+    right_leg = img[:, :split_point]
+    left_leg = img[:, split_point:]
 
-    prop = get_joint_y_proposals(right_l)
+    sizepx = int(size_mm / spacing)  # Proposal size
 
-    # We will store the coordinates of the top left and the bottom right corners of the bounding box
-    hog = cv2.HOGDescriptor(winSize,blockSize,blockStride,cellSize,nbins)
+    # We will store the coordinates of the top left and
+    # the bottom right corners of the bounding box
+    hog = cv2.HOGDescriptor(win_size, block_size, block_stride, cell_size, nbins)
 
-
-    # Making proposals for the right leg
-    R, C = right_l.shape
-    displacements = range(-C//4,1*C//4+1,step)
-    best_score = -999999999
-    sizepx = int(sizemm/spacing) # Proposal size
+    # Make proposals for the right leg
+    R, C = right_leg.shape
+    displacements = range(-C // 4, 1 * C // 4 + 1, step)
+    prop = get_joint_y_proposals(right_leg)
+    best_score = -np.inf
 
     for y_coord in prop:
         for x_displ in displacements:
             for scale in scales:
-                if C/2+x_displ-R/scale/2 >= 0:
+                if C/2 + x_displ - R / scale / 2 >= 0:
                     # Candidate ROI
-                    roi = np.array([C/2+x_displ-R/scale/2, y_coord-R/scale/2, R/scale, R/scale]).astype(int)
+                    roi = np.array([C / 2 + x_displ - R / scale / 2,
+                                    y_coord - R / scale / 2,
+                                    R / scale, R / scale], dtype=np.int)
                     x1, y1 = roi[0], roi[1]
-                    x2, y2 = roi[0]+roi[2], roi[1]+roi[3]
-                    patch = cv2.resize(img[y1:y2,x1:x2],(64, 64))
+                    x2, y2 = roi[0] + roi[2], roi[1] + roi[3]
+                    patch = cv2.resize(img[y1:y2, x1:x2], (64, 64))
 
-                    hog_descr = hog.compute(patch,winStride,padding)
-                    score = np.inner(w,hog_descr.ravel())+b
+                    hog_descr = hog.compute(patch, win_stride, padding)
+                    score = np.inner(svm_w, hog_descr.ravel()) + svm_b
 
                     if score > best_score:
-                        jc = np.array([C/2+x_displ, y_coord])
+                        jc = np.array([C / 2 + x_displ, y_coord])
                         best_score = score
 
+    roi_R = np.array([jc[0] - sizepx // 2,
+                      jc[1] - sizepx // 2,
+                      jc[0] + sizepx // 2,
+                      jc[1] + sizepx // 2]).round().astype(np.int)
 
-    roi_R = np.array([jc[0]-sizepx//2, jc[1]-sizepx//2, jc[0]+sizepx//2, jc[1]+sizepx//2])
-    # Making proposals for the left leg
-    R, C = left_l.shape
-    displacements = range(-C//4,1*C//4+1,step)
-    prop = get_joint_y_proposals(left_l)
-    best_score = -999999999
+    # Make proposals for the left leg
+    R, C = left_leg.shape
+    displacements = range(-C // 4, 1 * C // 4 + 1, step)
+    prop = get_joint_y_proposals(left_leg)
+    best_score = -np.inf
+
     for y_coord in prop:
         for x_displ in displacements:
             for scale in scales:
-                if split_point+x_displ+R/scale/2 < img.shape[1]:
-                    roi = np.array([split_point+C/2+x_displ-R/scale/2, y_coord-R/scale/2, R/scale, R/scale]).astype(int)
-
+                if split_point + x_displ + R / scale / 2 < img.shape[1]:
+                    roi = np.array([split_point + C / 2 + x_displ - R / scale / 2,
+                                    y_coord - R / scale / 2,
+                                    R / scale, R / scale], dtype=np.int)
                     x1, y1 = roi[0], roi[1]
-                    x2, y2 = roi[0]+roi[2], roi[1]+roi[3]
-                    patch = np.fliplr(cv2.resize(img[y1:y2,x1:x2],(64, 64)))
+                    x2, y2 = roi[0] + roi[2], roi[1] + roi[3]
+                    patch = np.fliplr(cv2.resize(img[y1:y2, x1:x2], (64, 64)))
 
-                    hog_descr = hog.compute(patch,winStride,padding)
-                    score = np.inner(w,hog_descr.ravel())+b
+                    hog_descr = hog.compute(patch, win_stride, padding)
+                    score = np.inner(svm_w, hog_descr.ravel()) + svm_b
 
                     if score > best_score:
-                        jc = np.array([split_point+C/2+x_displ, y_coord])
+                        jc = np.array([split_point + C / 2 + x_displ, y_coord])
                         best_score = score
 
-    roi_L = np.array([jc[0]-sizepx//2, jc[1]-sizepx//2, jc[0]+sizepx//2, jc[1]+sizepx//2])
+    roi_L = np.array([jc[0] - sizepx // 2,
+                      jc[1] - sizepx // 2,
+                      jc[0] + sizepx // 2,
+                      jc[1] + sizepx // 2]).round().astype(np.int)
 
-    return ' '.join(map(str,[fnames[i]] + np.round(roi_L).astype(int).tolist() + np.round(roi_R).astype(int).tolist()))
+    return ' '.join(map(str, [fname, ] + roi_L.tolist() + roi_R.tolist()))
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path_input', "--dir")
+    parser.add_argument('--fname_output', "--output",
+                        default='../detection_results.txt')
+
+    args = parser.parse_args()
+    args.path_input = os.path.abspath(args.path_input)
+    args.fname_output = os.path.abspath(args.fname_output)
+    return args
 
 
 if __name__ == "__main__":
+    args = parse_args()
 
-    start = time.time()
-    global DIR, w, b, fnames, winSize
-    global blockSize, blockStride, cellSize, winStride
-    global padding, nbins, step, scales, sizemm
-    sizemm = 120
-    winSize = (64,64)
-    blockSize = (16,16)
-    blockStride = (8,8)
-    cellSize = (8,8)
-    winStride = (64,64)
-    padding = (0,0)
+    ts_start = time.time()
+
+    size_mm = 120
+    win_size = (64, 64)
+    win_stride = (64, 64)
+    block_size = (16, 16)
+    block_stride = (8, 8)
+    cell_size = (8, 8)
+    padding = (0, 0)
     nbins = 9
-    scales = [ 3.2, 3.3, 3.4, 3.6, 3.8]
-    step=95
+    scales = [3.2, 3.3, 3.4, 3.6, 3.8]
+    step = 95
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dir")
-    parser.add_argument("--output", default='../detection_results.txt')
+    svm_w, svm_b = np.load('svm_model.npy', encoding='bytes')
     
-    args = parser.parse_args()
+    def worker_partial(fname):
+        return worker(fname, args.path_input, size_mm, win_size, win_stride,
+                      block_size, block_stride, cell_size, padding, nbins,
+                      scales, step, svm_w, svm_b)
 
-    DIR = os.path.abspath(args.dir)
-    fnames = os.listdir(DIR)
-    w, b = np.load('svm_model.npy', encoding='bytes')
-
-    with mp.Pool(mp.cpu_count()) as p:
-        res = list(tqdm(p.imap(worker, range(len(fnames))), total=len(fnames)))
+    fnames = os.listdir(args.path_input)
+    
+    with Pool(cpu_count()) as pool:
+        res = list(tqdm(pool.imap(
+            worker_partial, iter(fnames)), total=len(fnames)))
         
-    with open(args.output,'w') as f:
+    with open(args.fname_output, 'w') as f:
         for entry in res:
-            f.write(entry+'\n')
+            f.write(entry + '\n')
 
-    print('Script execution took', time.time()-start, 'seconds.')
+    ts_end = time.time() - ts_start
+    print('Script execution took {} seconds'.format(ts_end))
