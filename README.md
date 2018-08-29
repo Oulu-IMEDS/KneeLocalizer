@@ -1,17 +1,20 @@
 # Code for the paper from SCIA'17: A novel method for automatic localization of joint area on knee plain radiographs
 
 # Description
-Repository contains the code for an automatic knee joint detection on plain radiographs. This can be used to process very large amount of knee x-rays and generate bounding boxes (up to 6 000 000 per day on a high-end computer).
+Repository contains the code for an automatic knee joint detection on plain radiographs. It can be used to process very large amount of knee X-rays and generate bounding boxes (up to 6 000 000 per day on a high-end computer).
 
-Our package processes the data in a batch mode using multiple threads. To run in on your machine, you have to install the conda environment. For that, simply execute `create_conda_env.sh`
+Our package processes the data in a batch mode using multiple threads. To run in on your machine, you have to install the conda environment. For that, simply execute `create_conda_env.sh`.
 
 # How to run
 Run the script as follows:
 ```
-python detector.py --dir <dir with DICOM files>
+python detector.py --path_input <dir with DICOM files> \
+                   --fname_output <file to write the results>
 ```
 
-Script will produce the bounding boxes of 120mm and save it to the file *detection_results.txt*
+Script will produce the bounding boxes of 120mm and save it to the specified file
+(by default, `../detection_results.txt`).
+
 # How to cite
 If you use our package in your own research, please cite us:
 
