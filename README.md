@@ -8,6 +8,7 @@ Our package processes the data in a batch mode using multiple threads. To run in
 # How to run
 Run the script as follows:
 ```
+cd oulukneeloc
 python detector.py --path_input <dir with DICOM files> \
                    --fname_output <file to write the results>
 ```

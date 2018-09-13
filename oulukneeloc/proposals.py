@@ -23,8 +23,10 @@ def read_dicom(filename):
 
 
 def preprocess_xray(img, cut_min=5., cut_max=99.):
-    """Preprocess the Xray image using histogram clipping and global contrast normalization.
+    """Preprocess the X-ray image using histogram clipping and global contrast normalization.
 
+    Parameters
+    ----------
     cut_min: int
         Lowest percentile which is used to cut the image histogram.
     cut_max: int
@@ -54,7 +56,7 @@ def get_joint_y_proposals(img, av_points=11, margin=0.25):
     # Sum the middle if the leg is along the X-axis
     segm_line = np.sum(img[int(R * margin):int(R * (1 - margin)),
                            int(C / 3):int(C - C / 3)], axis=1)
-    # Smooth segmentation line and find the absolute of the derivative
+    # Smooth the segmentation line and find the absolute of the derivative
     segm_line = np.abs(np.convolve(
         np.diff(segm_line), np.ones((av_points, )) / av_points)[(av_points-1):])
 
