@@ -2,40 +2,48 @@ import numpy as np
 import pydicom as dicom
 
 
-def read_dicom(filename, cut_min=5, cut_max=99):
+def read_dicom(filename):
     """Read DICOM file and convert it to a decent quality uint8 image.
 
     Parameters
     ----------
     filename: str
         Existing DICOM file filename.
+    """
+    try:
+        data = dicom.read_file(filename)
+        img = np.frombuffer(data.PixelData, dtype=np.uint16)
+
+        if data.PhotometricInterpretation == 'MONOCHROME1':
+            img = img.max() - img
+        img = img.reshape((data.Rows, data.Columns))
+        return img, data.ImagerPixelSpacing[0]
+    except:
+        return None
+
+
+def preprocess_xray(img, cut_min=5., cut_max=99.):
+    """Preprocess the Xray image using histogram clipping and global contrast normalization.
+
     cut_min: int
         Lowest percentile which is used to cut the image histogram.
     cut_max: int
         Highest percentile.
     """
-    try:
-        data = dicom.read_file(filename)
-        img = np.frombuffer(data.PixelData, dtype=np.uint16).copy().astype(np.float64)
 
-        if data.PhotometricInterpretation == 'MONOCHROME1':
-            img = img.max() - img
+    img = img.astype(np.float64)
 
-        lim1, lim2 = np.percentile(img, [cut_min, cut_max])
+    lim1, lim2 = np.percentile(img, [cut_min, cut_max])
 
-        img[img < lim1] = lim1
-        img[img > lim2] = lim2
+    img[img < lim1] = lim1
+    img[img > lim2] = lim2
 
-        img -= lim1
+    img -= lim1
 
-        img /= img.max()
-        img *= 255
-        img = img.astype(np.uint8)
+    img /= img.max()
+    img *= 255
 
-        img = img.reshape((data.Rows, data.Columns))
-        return img, data.ImagerPixelSpacing[0]
-    except:
-        return None
+    return img.astype(np.uint8)
 
 
 def get_joint_y_proposals(img, av_points=11, margin=0.25):
