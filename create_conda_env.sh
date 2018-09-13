@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 conda create -y -n knee_localizer python=3.6
 conda install -y -n knee_localizer numpy opencv scipy
