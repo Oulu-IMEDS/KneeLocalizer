@@ -28,12 +28,12 @@ class KneeLocalizer:
         self.size_mm = size_mm
         self.svm_w, self.svm_b = np.load(svm_model_path, encoding='bytes')
 
-    def predict(self, fname, spacing=None):
+    def predict(self, fileobj, spacing=None):
         """Localize the left and the right knee joints in PA X-ray image.
 
         Parameters
         ----------
-        fname: str or ndarray
+        fileobj: str or ndarray
             Filename of the DICOM image, or already extracted uint16 ndarray.
         spacing: float or None
             Spacing extracted from the previously read DICOM.
@@ -45,16 +45,16 @@ class KneeLocalizer:
             The second list has the bbox for the right knee joint.
         """
 
-        if isinstance(fname, str):
-            tmp = read_dicom(fname)
+        if isinstance(fileobj, str):
+            tmp = read_dicom(fileobj)
             if tmp is None:
                 return None
             if len(tmp) != 2:
                 return None
             img, spacing = tmp
             img = preprocess_xray(img)
-        elif isinstance(fname, np.ndarray):
-            img = fname
+        elif isinstance(fileobj, np.ndarray):
+            img = fileobj
             if spacing is None:
                 raise ValueError
         else:
