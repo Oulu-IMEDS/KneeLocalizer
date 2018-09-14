@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 
 setup(
@@ -6,7 +6,7 @@ setup(
     version='0.1',
     author='Aleksei Tiulpin',
     author_email='aleksei.tiulpin@oulu.fi',
-    packages=['oulukneeloc',],
+    packages=find_packages(),
     license='LICENSE.txt',
     long_description=open('README.md').read(),
 )
