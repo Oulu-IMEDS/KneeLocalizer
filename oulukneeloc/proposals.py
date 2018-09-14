@@ -12,7 +12,7 @@ def read_dicom(filename):
     """
     try:
         data = dicom.read_file(filename)
-        img = np.frombuffer(data.PixelData, dtype=np.uint16)
+        img = np.frombuffer(data.PixelData, dtype=np.uint16).copy()
 
         if data.PhotometricInterpretation == 'MONOCHROME1':
             img = img.max() - img
@@ -45,7 +45,7 @@ def preprocess_xray(img, cut_min=5., cut_max=99.):
     img /= img.max()
     img *= 255
 
-    return img.astype(np.uint8)
+    return img.astype(np.uint8, casting='unsafe')
 
 
 def get_joint_y_proposals(img, av_points=11, margin=0.25):
