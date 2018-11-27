@@ -7,3 +7,5 @@ source activate knee_localizer
 pip install pip -U
 pip install pydicom
 pip install tqdm
+
+pip install -e .
